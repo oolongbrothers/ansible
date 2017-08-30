@@ -1,62 +1,73 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-# Copyright (c) 2017 Ansible Project GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
+# Copyright: (c) 2017 John Kwiatkoski
+# Copyright: (c) 2017 Ansible Project
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
+
 import subprocess
 #from urlparse import urlparse
 from ansible.module_utils.basic import AnsibleModule
-__metaclass__ = type
 
 ANSIBLE_METADATA = {'metadata_version': '1.1',
                     'status': ['preview'],
                     'supported_by': 'community'}
 
-DOCUMENTATION = '''
+DOCUMENTATION = r'''
 ---
-module: flatpak_repo
-version_added: "2.4"
+module: flatpak_remote
+version_added: '2.4'
 requirements:
-    - flatpak
+- flatpak
 author:
-    - John Kwiatkoski (@jaykayy)
-short_description: Install and remove flatpaks remotes
+- John Kwiatkoski (@jaykayy)
+short_description: Manage flatpaks remotes
 description:
-    - The flatpak_repo module allows users to manage installation and removal of flatpaks remotes.
+- Manage flatpak remotes.
 options:
   name:
     description:
-      - When I(state) is set to C(present), I(name) is added as a remote for installing flatpaks. When used with I(state=absent) the remote will be removed.
+    - When I(state) is set to C(present), I(name) is added as a remote for installing flatpaks. When used with I(state=absent) the remote will be removed.
     required: true
+    aliases: [ remote ]
+  executable:
+    description:
+    - The path to the C(flatpak) executable to use.
+    default: flatpak
   state:
     description:
       - Set to C(present) will install the flatpak remote.
-        Set to C(absent) will remove the flatpak remote.
-    default: present
+      - Set to C(absent) will remove the flatpak remote.
     choices: [ absent, present ]
+    default: present
 '''
-EXAMPLES = '''
- - name: Add the gnome remote andd install gedit flatpak
-   flatpak:
+
+EXAMPLES = r'''
+- name: Add the Gnome flatpak remote
+  flatpak_remote:
     name: https://sdk.gnome.org/gnome-apps.flatpakrepo
     state: present
 
- - name: Remove the gedit flatpak and remote
-   flatpak:
+- name: Remove the Gnome flatpak remote
+  flatpak_remote:
     name: https://sdk.gnome.org/gnome-apps.flatpakrepo
     state: absent
 '''
-RETURN = '''
+
+RETURN = r'''
 reason:
-    description: On failure, the output for the failure
-    returned: failed
-    type: string
-    sample: error while installing...
+  description: On failure, the output for the failure
+  returned: failed
+  type: string
+  sample: error while installing...
 name:
-    description: Remote of flatpak given for the operation
-    returned: always
-    type: string
-    sample: https://sdk.gnome.org/gnome-apps.flatpakrepo
+  description: Remote of flatpak given for the operation
+  returned: always
+  type: string
+  sample: https://sdk.gnome.org/gnome-apps.flatpakrepo
 '''
 
 
@@ -108,6 +119,7 @@ def is_present_remote(binary, remote):
 
     return False
 
+
 def flatpak_command(command):
     process = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output = process.communicate()[0]
@@ -119,32 +131,32 @@ def main():
     # This module supports check mode
     module = AnsibleModule(
         argument_spec=dict(
-            name=dict(type='str', required=True),
+            name=dict(type='str', required=True, aliases=['remote']),
             state=dict(type='str', default="present", choices=['absent', 'present'])
         ),
         supports_check_mode=True,
     )
-    remote = module.params['name']
+
+    name = module.params['name']
     state = module.params['state']
-    module_changed = False
-    location = module.get_bin_path('flatpak')
-    if location is None:
-        module.fail_json(msg="cannot find 'flatpak' binary. Aborting.")
+    executable = module.params['executable']
 
-    if state == 'present':
-        if remote is not None and not is_present_remote(location, remote):
-            code, output = add_remote(location, remote, module)
-            if code == 1:
-                module.fail_json(msg="error while adding remote: {}".format(remote), reason=output)
-    else:
-        if remote is not None and is_present_remote(location, remote):
-            code, output = remove_remote(location, remote, module)
-            if code == 1:
-                module.fail_json(msg="error while removing remote: {}".format(remote), reason=output)
-            else:
-                module_changed = True
+    # We want to know if the user provided it or not, so we set default here
+    if executable is None:
+        executable = 'flatpak'
 
-    module.exit_json(changed=module_changed)
+    binary = module.get_bin_path(executable, None)
+
+    # When executable was provided and binary not found, warn user !
+    if module.params['executable'] is not None and not binary:
+        module.warn("Executable '%s' is not found on the system." % executable)
+
+    if state == 'present and not remote_exists(binary, remote):
+        add_remote(module, binary, remote)
+    elif state == 'absent and remote_exists(binary, remote):
+        remove_remote(module, binary, remote)
+
+    module.exit_json(changed=False)
 
 
 if __name__ == '__main__':
