@@ -8,6 +8,10 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
+import subprocess
+#from urlparse import urlparse
+from ansible.module_utils.basic import AnsibleModule
+
 ANSIBLE_METADATA = {'metadata_version': '1.1',
                     'status': ['preview'],
                     'supported_by': 'community'}
@@ -15,15 +19,14 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
 DOCUMENTATION = r'''
 ---
 module: flatpak_remote
-version_added: '2.6'
+version_added: '2.4'
 requirements:
 - flatpak
 author:
 - John Kwiatkoski (@jaykayy)
-- Alexander Bethke (@oolongbrothers)
-short_description: Manage flatpak repository remotes
+short_description: Manage flatpaks remotes
 description:
-- Manage flatpak repository remotes.
+- Manage flatpak remotes.
 options:
   name:
     description:
@@ -43,14 +46,14 @@ options:
 '''
 
 EXAMPLES = r'''
-- name: Add the flathub flatpak repository remote
+- name: Add the Gnome flatpak remote
   flatpak_remote:
-    name: https://dl.flathub.org/repo/flathub.flatpakrepo
+    name: https://sdk.gnome.org/gnome-apps.flatpakrepo
     state: present
 
-- name: Remove the flathub flatpak repository remote
+- name: Remove the Gnome flatpak remote
   flatpak_remote:
-    name: https://dl.flathub.org/repo/flathub.flatpakrepo
+    name: https://sdk.gnome.org/gnome-apps.flatpakrepo
     state: absent
 '''
 
@@ -68,23 +71,20 @@ name:
 '''
 
 
-import subprocess
-from ansible.module_utils.basic import AnsibleModule
-
-
 def parse_remote(remote):
     name = remote.split('/')[-1]
-    if '.' in name:
-        name = name.split('.')[0]
-    return name
+    if '.' not in name:
+        return name
 
+    return name.split('.')[0]
 
-def add_remote(module, binary, remote):
+def add_remote(binary, remote, module):
     remote_name = parse_remote(remote)
     if module.check_mode:
         # Check if any changes would be made but don't actually make
         # those changes
         module.exit_json(changed=True)
+   # Do I need my is_present_remote function if the binary provides --if-not-exists?
     command = "{} remote-add --if-not-exists {} {}".format(
         binary, remote_name, remote)
 
@@ -95,7 +95,7 @@ def add_remote(module, binary, remote):
     return 0, output
 
 
-def remove_remote(module, binary, remote):
+def remove_remote(binary, remote, module):
     remote_name = parse_remote(remote)
     if module.check_mode:
         # Check if any changes would be made but don't actually make
@@ -111,13 +111,11 @@ def remove_remote(module, binary, remote):
 
 
 def is_present_remote(binary, remote):
-    remote_name = parse_remote(remote)
+    remote_name = parse_remote(remote).lower() + " "
     command = "{} remote-list".format(binary)
     output = flatpak_command(command)
-    for line in output.split('\n'):
-        listed_remote = line.split('\t')[0].strip()
-        if listed_remote == remote_name:
-            return True
+    if remote_name in output.lower():
+        return True
 
     return False
 
@@ -134,8 +132,7 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             name=dict(type='str', required=True, aliases=['remote']),
-            state=dict(type='str', default="present", choices=['absent', 'present']),
-            executable=dict(type='str', default="flatpak")
+            state=dict(type='str', default="present", choices=['absent', 'present'])
         ),
         supports_check_mode=True,
     )
@@ -144,17 +141,22 @@ def main():
     state = module.params['state']
     executable = module.params['executable']
 
-    binary = module.get_bin_path(executable, required=True)
+    # We want to know if the user provided it or not, so we set default here
+    if executable is None:
+        executable = 'flatpak'
 
-    changed = False
-    if state == 'present' and not is_present_remote(binary, name):
-        add_remote(module, binary, name)
-        changed = True
-    elif state == 'absent' and is_present_remote(binary, name):
-        remove_remote(module, binary, name)
-        changed = True
+    binary = module.get_bin_path(executable, None)
 
-    module.exit_json(changed=changed)
+    # When executable was provided and binary not found, warn user !
+    if module.params['executable'] is not None and not binary:
+        module.warn("Executable '%s' is not found on the system." % executable)
+
+    if state == 'present and not remote_exists(binary, remote):
+        add_remote(module, binary, remote)
+    elif state == 'absent and remote_exists(binary, remote):
+        remove_remote(module, binary, remote)
+
+    module.exit_json(changed=False)
 
 
 if __name__ == '__main__':
