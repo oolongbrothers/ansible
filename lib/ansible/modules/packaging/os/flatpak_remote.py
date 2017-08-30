@@ -8,6 +8,10 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
+import subprocess
+#from urlparse import urlparse
+from ansible.module_utils.basic import AnsibleModule
+
 ANSIBLE_METADATA = {'metadata_version': '1.1',
                     'status': ['preview'],
                     'supported_by': 'community'}
@@ -15,15 +19,14 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
 DOCUMENTATION = r'''
 ---
 module: flatpak_remote
-version_added: '2.6'
+version_added: '2.4'
 requirements:
 - flatpak
 author:
 - John Kwiatkoski (@jaykayy)
-- Alexander Bethke (@oolongbrothers)
-short_description: Manage flatpak repository remotes
+short_description: Manage flatpaks remotes
 description:
-- Manage flatpak repository remotes.
+- Manage flatpak remotes.
 options:
   name:
     description:
@@ -201,7 +204,15 @@ def main():
     state = module.params['state']
     executable = module.params['executable']
 
-    binary = module.get_bin_path(executable, required=True)
+    # We want to know if the user provided it or not, so we set default here
+    if executable is None:
+        executable = 'flatpak'
+
+    binary = module.get_bin_path(executable, None)
+
+    # When executable was provided and binary not found, warn user !
+    if module.params['executable'] is not None and not binary:
+        module.warn("Executable '%s' is not found on the system." % executable)
 
     binary = module.get_bin_path(executable, required=True)
     if remote is None:
