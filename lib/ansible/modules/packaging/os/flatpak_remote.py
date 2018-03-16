@@ -108,7 +108,7 @@ def add_remote(module, binary, name, remote, method):
         # Check if any changes would be made but don't actually make
         # those changes
         module.exit_json(changed=True)
-    command = "{} remote-add --{} {} {}".format(
+    command = "{0} remote-add --{1} {2} {3}".format(
         binary, method, name, remote)
 
     output = flatpak_command(command)
@@ -125,7 +125,8 @@ def remove_remote(module, binary, name, method):
         # those changes
         module.exit_json(changed=True)
 
-    command = "{} remote-delete --{} --force {} ".format(binary, method, name)
+    command = "{0} remote-delete --{1} --force {2} ".format(
+        binary, method, name)
     output = flatpak_command(command)
     if 'error' in output and 'not found' not in output:
         return 1, output
@@ -140,7 +141,7 @@ def remove_remote(module, binary, name, method):
 
 def remote_status(binary, name, remote, method):
     #    remote_name = parse_remote(remote)
-    command = "{} remote-list -d --{}".format(binary, method)
+    command = "{0} remote-list -d --{1}".format(binary, method)
     output = flatpak_command(command)
     for line in output.split('\n'):
         listed_remote = line.split(' ')
