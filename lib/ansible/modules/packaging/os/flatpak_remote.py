@@ -73,10 +73,10 @@ from ansible.module_utils.basic import AnsibleModule
 
 def parse_remote(remote):
     name = remote.split('/')[-1]
-    if '.' not in name:
-        return name
+    if '.' in name:
+        name = name.split('.')[0]
+    return name
 
-    return name.split('.')[0]
 
 def add_remote(module, binary, remote):
     remote_name = parse_remote(remote)
@@ -111,11 +111,13 @@ def remove_remote(module, binary, remote):
 
 
 def is_present_remote(binary, remote):
-    remote_name = parse_remote(remote).lower() + " "
+    remote_name = parse_remote(remote)
     command = "{} remote-list".format(binary)
     output = flatpak_command(command)
-    if remote_name in output.lower():
-        return True
+    for line in output.split('\n'):
+        listed_remote = line.split('\t')[0].strip()
+        if listed_remote == remote_name:
+            return True
 
     return False
 
