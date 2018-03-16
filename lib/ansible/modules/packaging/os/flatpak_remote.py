@@ -15,7 +15,7 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
 DOCUMENTATION = r'''
 ---
 module: flatpak_remote
-version_added: '2.4'
+version_added: '2.6'
 requirements:
 - flatpak
 author:
