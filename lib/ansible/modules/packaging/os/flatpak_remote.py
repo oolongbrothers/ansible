@@ -84,9 +84,8 @@ def add_remote(binary, remote, module):
         # Check if any changes would be made but don't actually make
         # those changes
         module.exit_json(changed=True)
-   # Do I need my is_present_remote function if the binary provides --if-not-exists?
-    command = "{} remote-add --if-not-exists {} {}".format(
-        binary, remote_name, remote)
+    command = "{0} remote-add --{1} {2} {3}".format(
+        binary, method, name, remote)
 
     output = flatpak_command(command)
     if 'error' in output:
@@ -102,7 +101,7 @@ def remove_remote(binary, remote, module):
         # those changes
         module.exit_json(changed=True)
 
-    command = "{} remote-delete --force {} ".format(binary, remote_name)
+    command = "{0} remote-delete --{1} --force {2}".format(binary, method, name)
     output = flatpak_command(command)
     if 'error' in output and 'not found' not in output:
         return 1, output
