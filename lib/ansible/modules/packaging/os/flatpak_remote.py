@@ -165,7 +165,7 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             name=dict(type='str', required=True),
-            remote=dict(type='str', default=''),
+            remote=dict(type='str'),
             method=dict(type='str', default='user',
                         choices=['user', 'system']),
             state=dict(type='str', default="present",
@@ -192,6 +192,9 @@ def main():
         module.warn("Executable '%s' is not found on the system." % executable)
 
     binary = module.get_bin_path(executable, required=True)
+    if remote is None:
+        remote = ''
+
     status = remote_status(binary, name, remote, method)
     changed = False
     if state == 'present':
