@@ -31,7 +31,8 @@ options:
     required: true
   remote:
     description:
-    - When I(state) is set to C(present), I(remote) url is added to the target as a I(method) installation flatpak. When used with I(state=absent), this is not required.
+    - When I(state) is set to C(present), I(remote) url is added to the target as a I(method) installation flatpak.
+      When used with I(state=absent), this is not required.
     required: false
   method:
     description:
