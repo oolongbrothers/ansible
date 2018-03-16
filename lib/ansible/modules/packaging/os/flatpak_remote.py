@@ -114,7 +114,7 @@ def add_remote(module, binary, name, remote, method):
         # Check if any changes would be made but don't actually make
         # those changes
         module.exit_json(changed=True)
-    command = "{} remote-add --{} {} {}".format(
+    command = "{0} remote-add --{1} {2} {3}".format(
         binary, method, name, remote)
 
     return_code, output = _flatpak_command(command)
