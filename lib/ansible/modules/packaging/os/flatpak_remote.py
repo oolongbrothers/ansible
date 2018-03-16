@@ -8,10 +8,6 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
-import subprocess
-#from urlparse import urlparse
-from ansible.module_utils.basic import AnsibleModule
-
 ANSIBLE_METADATA = {'metadata_version': '1.1',
                     'status': ['preview'],
                     'supported_by': 'community'}
@@ -19,14 +15,15 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
 DOCUMENTATION = r'''
 ---
 module: flatpak_remote
-version_added: '2.4'
+version_added: '2.6'
 requirements:
 - flatpak
 author:
 - John Kwiatkoski (@jaykayy)
-short_description: Manage flatpaks remotes
+- Alexander Bethke (@oolongbrothers)
+short_description: Manage flatpak repository remotes
 description:
-- Manage flatpak remotes.
+- Manage flatpak repository remotes.
 options:
   name:
     description:
@@ -117,7 +114,7 @@ def add_remote(module, binary, name, remote, method):
         # Check if any changes would be made but don't actually make
         # those changes
         module.exit_json(changed=True)
-    command = "{0} remote-add --{1} {2} {3}".format(
+    command = "{} remote-add --{} {} {}".format(
         binary, method, name, remote)
 
     return_code, output = _flatpak_command(command)
@@ -154,6 +151,10 @@ def remove_remote(module, binary, name, method):
 
     return 0, output
 
+# Possible outcomes
+# 0 - remote name exists with correct url
+# 1 - remote name exists but different url
+# 2 - remote name doesn't exist
 
 def check_remote_status(binary, name, remote, method):
     """
