@@ -121,7 +121,8 @@ def is_present_remote(binary, remote):
 
 
 def flatpak_command(command):
-    process = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    process = subprocess.Popen(
+        command.split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output = process.communicate()[0]
 
     return output
@@ -132,7 +133,9 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             name=dict(type='str', required=True, aliases=['remote']),
-            state=dict(type='str', default="present", choices=['absent', 'present'])
+            state=dict(type='str', default="present",
+                       choices=['absent', 'present']),
+            executable=dict(type='str', default="flatpak")
         ),
         supports_check_mode=True,
     )
@@ -157,6 +160,7 @@ def main():
         remove_remote(module, binary, remote)
 
     module.exit_json(changed=False)
+
 
 
 if __name__ == '__main__':
