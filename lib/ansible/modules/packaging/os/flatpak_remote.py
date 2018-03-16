@@ -84,7 +84,6 @@ def add_remote(module, binary, remote):
         # Check if any changes would be made but don't actually make
         # those changes
         module.exit_json(changed=True)
-   # Do I need my is_present_remote function if the binary provides --if-not-exists?
     command = "{} remote-add --if-not-exists {} {}".format(
         binary, remote_name, remote)
 
@@ -146,12 +145,15 @@ def main():
 
     binary = module.get_bin_path(executable, required=True)
 
+    changed = False
     if state == 'present' and not is_present_remote(binary, name):
         add_remote(module, binary, name)
+        changed = True
     elif state == 'absent' and is_present_remote(binary, name):
         remove_remote(module, binary, name)
+        changed = True
 
-    module.exit_json(changed=False)
+    module.exit_json(changed=changed)
 
 
 if __name__ == '__main__':
