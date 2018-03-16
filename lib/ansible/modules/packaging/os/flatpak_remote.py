@@ -132,7 +132,8 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             name=dict(type='str', required=True, aliases=['remote']),
-            state=dict(type='str', default="present", choices=['absent', 'present'])
+            state=dict(type='str', default="present", choices=['absent', 'present']),
+            executable=dict(type='str', default="flatpak")
         ),
         supports_check_mode=True,
     )
@@ -141,15 +142,7 @@ def main():
     state = module.params['state']
     executable = module.params['executable']
 
-    # We want to know if the user provided it or not, so we set default here
-    if executable is None:
-        executable = 'flatpak'
-
-    binary = module.get_bin_path(executable, None)
-
-    # When executable was provided and binary not found, warn user !
-    if module.params['executable'] is not None and not binary:
-        module.warn("Executable '%s' is not found on the system." % executable)
+    binary = module.get_bin_path(executable, required=True)
 
     if state == 'present' and not is_present_remote(binary, name):
         add_remote(module, binary, name)
