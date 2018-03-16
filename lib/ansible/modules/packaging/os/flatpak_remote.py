@@ -8,10 +8,6 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
-import subprocess
-#from urlparse import urlparse
-from ansible.module_utils.basic import AnsibleModule
-
 ANSIBLE_METADATA = {'metadata_version': '1.1',
                     'status': ['preview'],
                     'supported_by': 'community'}
@@ -19,20 +15,30 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
 DOCUMENTATION = r'''
 ---
 module: flatpak_remote
-version_added: '2.4'
+version_added: '2.6'
 requirements:
 - flatpak
 author:
 - John Kwiatkoski (@jaykayy)
-short_description: Manage flatpaks remotes
+- Alexander Bethke (@oolongbrothers)
+short_description: Manage flatpak repository remotes
 description:
-- Manage flatpak remotes.
+- Manage flatpak repository remotes.
 options:
   name:
     description:
     - When I(state) is set to C(present), I(name) is added as a remote for installing flatpaks. When used with I(state=absent) the remote will be removed.
     required: true
-    aliases: [ remote ]
+  remote:
+    description:
+    - When I(state) is set to C(present), I(remote) url is added to the target as a I(method) installation flatpak. When used with I(state=absent), this is not required.
+    required: false
+  method:
+    description:
+    - Determines the type of installation to work on. Can be C(user) or C(system) installations.
+    choices: [ user, system ]
+    required: false
+    default: user
   executable:
     description:
     - The path to the C(flatpak) executable to use.
@@ -46,15 +52,30 @@ options:
 '''
 
 EXAMPLES = r'''
-- name: Add the Gnome flatpak remote
+- name: Add the Gnome flatpak remote to the system installation under the name 'gnome'.
   flatpak_remote:
-    name: https://sdk.gnome.org/gnome-apps.flatpakrepo
+    name: gnome
     state: present
+    remote: https://sdk.gnome.org/gnome-apps.flatpakrepo
+    method: system
 
-- name: Remove the Gnome flatpak remote
+- name: Remove the Gnome flatpak remote  from the user installation.
   flatpak_remote:
-    name: https://sdk.gnome.org/gnome-apps.flatpakrepo
+    name: gnome
     state: absent
+
+- name: Add the flathub flatpak repository remote to the user installation.
+  flatpak_remote:
+    name: flathub
+    state: present
+    remote:  https://dl.flathub.org/repo/flathub.flatpakrepo
+    method: user
+
+- name: Remove the flathub flatpak repository remote from the system installtion.
+  flatpak_remote:
+    name: flathub
+    state: absent
+    method: system
 '''
 
 RETURN = r'''
@@ -70,21 +91,24 @@ name:
   sample: https://sdk.gnome.org/gnome-apps.flatpakrepo
 '''
 
+import subprocess
+from ansible.module_utils.basic import AnsibleModule
 
-def parse_remote(remote):
-    name = remote.split('/')[-1]
-    if '.' not in name:
-        return name
 
-    return name.split('.')[0]
+# def parse_remote(remote):
+#    name = remote.split('/')[-1]
+#    if '.' in name:
+#        name = name.split('.')[0]
+#    return name
 
-def add_remote(binary, remote, module):
-    remote_name = parse_remote(remote)
+
+def add_remote(module, binary, name, remote, method):
+    #    remote_name = parse_remote(remote)
     if module.check_mode:
         # Check if any changes would be made but don't actually make
         # those changes
         module.exit_json(changed=True)
-    command = "{0} remote-add --{1} {2} {3}".format(
+    command = "{} remote-add --{} {} {}".format(
         binary, method, name, remote)
 
     output = flatpak_command(command)
@@ -94,29 +118,37 @@ def add_remote(binary, remote, module):
     return 0, output
 
 
-def remove_remote(binary, remote, module):
-    remote_name = parse_remote(remote)
+def remove_remote(module, binary, name, method):
+    #    remote_name = parse_remote(remote)
     if module.check_mode:
         # Check if any changes would be made but don't actually make
         # those changes
         module.exit_json(changed=True)
 
-    command = "{0} remote-delete --{1} --force {2}".format(binary, method, name)
+    command = "{} remote-delete --{} --force {} ".format(binary, method, name)
     output = flatpak_command(command)
     if 'error' in output and 'not found' not in output:
         return 1, output
 
     return 0, output
 
+# Possible outcomes
+# 0 - remote name exists with correct url
+# 1 - remote name exists but different url
+# 2 - remote name doesn't exist
 
-def is_present_remote(binary, remote):
-    remote_name = parse_remote(remote).lower() + " "
-    command = "{} remote-list".format(binary)
+
+def remote_status(binary, name, remote, method):
+    #    remote_name = parse_remote(remote)
+    command = "{} remote-list -d --{}".format(binary, method)
     output = flatpak_command(command)
-    if remote_name in output.lower():
-        return True
-
-    return False
+    for line in output.split('\n'):
+        listed_remote = line.split(' ')
+        if listed_remote[0] == name:
+            if listed_remote[2] == remote:
+                return 0
+            return 1
+    return 2
 
 
 def flatpak_command(command):
@@ -131,7 +163,10 @@ def main():
     # This module supports check mode
     module = AnsibleModule(
         argument_spec=dict(
-            name=dict(type='str', required=True, aliases=['remote']),
+            name=dict(type='str', required=True),
+            remote=dict(type='str', default=''),
+            method=dict(type='str', default='user',
+                        choices=['user', 'system']),
             state=dict(type='str', default="present",
                        choices=['absent', 'present']),
             executable=dict(type='str', default="flatpak")
@@ -140,6 +175,8 @@ def main():
     )
 
     name = module.params['name']
+    remote = module.params['remote']
+    method = module.params['method']
     state = module.params['state']
     executable = module.params['executable']
 
@@ -153,13 +190,28 @@ def main():
     if module.params['executable'] is not None and not binary:
         module.warn("Executable '%s' is not found on the system." % executable)
 
-    if state == 'present and not remote_exists(binary, remote):
-        add_remote(module, binary, remote)
-    elif state == 'absent and remote_exists(binary, remote):
-        remove_remote(module, binary, remote)
+    binary = module.get_bin_path(executable, required=True)
+    status = remote_status(binary, name, remote, method)
+    changed = False
+    if state == 'present':
+        if status == 0:
+            changed = False
+        elif status == 1:
+            # Found name with wrong url, replacing with desired url.
+            remove_remote(module, binary, name, method)
+            add_remote(module, binary, name, remote, method)
+            changed = True
+        else:
+            add_remote(module, binary, name, remote, method)
+            changed = True
+    else:
+        if status == 0 or status == 1:
+            remove_remote(module, binary, name, method)
+            changed = True
+        else:
+            changed = False
 
-    module.exit_json(changed=False)
-
+    module.exit_json(changed=changed)
 
 
 if __name__ == '__main__':
