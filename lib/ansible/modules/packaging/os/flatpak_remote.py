@@ -20,9 +20,10 @@ requirements:
 - flatpak
 author:
 - John Kwiatkoski (@jaykayy)
-short_description: Manage flatpaks remotes
+- Alexander Bethke (@oolongbrothers)
+short_description: Manage flatpak repository remotes
 description:
-- Manage flatpak remotes.
+- Manage flatpak repository remotes.
 options:
   name:
     description:
@@ -42,14 +43,14 @@ options:
 '''
 
 EXAMPLES = r'''
-- name: Add the Gnome flatpak remote
+- name: Add the flathub flatpak repository remote
   flatpak_remote:
-    name: https://sdk.gnome.org/gnome-apps.flatpakrepo
+    name: https://dl.flathub.org/repo/flathub.flatpakrepo
     state: present
 
-- name: Remove the Gnome flatpak remote
+- name: Remove the flathub flatpak repository remote
   flatpak_remote:
-    name: https://sdk.gnome.org/gnome-apps.flatpakrepo
+    name: https://dl.flathub.org/repo/flathub.flatpakrepo
     state: absent
 '''
 
