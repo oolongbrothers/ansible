@@ -78,7 +78,7 @@ def parse_remote(remote):
 
     return name.split('.')[0]
 
-def add_remote(binary, remote, module):
+def add_remote(module, binary, remote):
     remote_name = parse_remote(remote)
     if module.check_mode:
         # Check if any changes would be made but don't actually make
@@ -95,7 +95,7 @@ def add_remote(binary, remote, module):
     return 0, output
 
 
-def remove_remote(binary, remote, module):
+def remove_remote(module, binary, remote):
     remote_name = parse_remote(remote)
     if module.check_mode:
         # Check if any changes would be made but don't actually make
@@ -151,10 +151,10 @@ def main():
     if module.params['executable'] is not None and not binary:
         module.warn("Executable '%s' is not found on the system." % executable)
 
-    if state == 'present and not remote_exists(binary, remote):
-        add_remote(module, binary, remote)
-    elif state == 'absent and remote_exists(binary, remote):
-        remove_remote(module, binary, remote)
+    if state == 'present' and not is_present_remote(binary, name):
+        add_remote(module, binary, name)
+    elif state == 'absent' and is_present_remote(binary, name):
+        remove_remote(module, binary, name)
 
     module.exit_json(changed=False)
 
