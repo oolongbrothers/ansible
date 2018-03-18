@@ -39,7 +39,7 @@ options:
     - Determines the type of installation to work on. Can be C(user) or C(system) installations.
     choices: [ user, system ]
     required: false
-    default: user
+    default: system
   executable:
     description:
     - The path to the C(flatpak) executable to use.
@@ -186,7 +186,7 @@ def main():
         argument_spec=dict(
             name=dict(type='str', required=True),
             remote=dict(type='str'),
-            method=dict(type='str', default='user',
+            method=dict(type='str', default='system',
                         choices=['user', 'system']),
             state=dict(type='str', default="present",
                        choices=['absent', 'present']),
