@@ -165,9 +165,9 @@ def check_remote_status(binary, name, remote, method):
             2 - remote name doesn't exist
     """
     command = "{0} remote-list -d --{1}".format(binary, method)
-    output = flatpak_command(command)
-    for line in output.split('\n'):
-        listed_remote = line.split(' ')
+    output = _flatpak_command(command)
+    for line in output.splitlines():
+        listed_remote = line.split()
         if listed_remote[0] == name:
             if listed_remote[2] == remote:
                 return 0
