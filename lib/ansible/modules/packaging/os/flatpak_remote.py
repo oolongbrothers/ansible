@@ -96,15 +96,20 @@ import subprocess
 from ansible.module_utils.basic import AnsibleModule
 
 
-# def parse_remote(remote):
-#    name = remote.split('/')[-1]
-#    if '.' in name:
-#        name = name.split('.')[0]
-#    return name
-
-
 def add_remote(module, binary, name, remote, method):
-    #    remote_name = parse_remote(remote)
+    """
+    Add a new remote.
+
+    returns:
+        result, type: int
+            The result status of the operation
+            Possible values:
+            0 - operation successful
+            1 - operation failed
+        output, type: str
+            Output of the operation
+            Especially helpful to know that's wrong when the operation failed
+    """
     if module.check_mode:
         # Check if any changes would be made but don't actually make
         # those changes
@@ -112,7 +117,7 @@ def add_remote(module, binary, name, remote, method):
     command = "{0} remote-add --{1} {2} {3}".format(
         binary, method, name, remote)
 
-    output = flatpak_command(command)
+    output = _flatpak_command(command)
     if 'error' in output:
         return 1, output
 
@@ -120,7 +125,19 @@ def add_remote(module, binary, name, remote, method):
 
 
 def remove_remote(module, binary, name, method):
-    #    remote_name = parse_remote(remote)
+    """
+    Remove an existing remote.
+
+    returns:
+        result, type: int
+            The result status of the operation
+            Possible values:
+            0 - operation successful
+            1 - operation failed
+        output, type: str
+            Output of the operation
+            Especially helpful to know that's wrong when the operation failed
+    """
     if module.check_mode:
         # Check if any changes would be made but don't actually make
         # those changes
@@ -128,20 +145,25 @@ def remove_remote(module, binary, name, method):
 
     command = "{0} remote-delete --{1} --force {2} ".format(
         binary, method, name)
-    output = flatpak_command(command)
+    output = _flatpak_command(command)
     if 'error' in output and 'not found' not in output:
         return 1, output
 
     return 0, output
 
-# Possible outcomes
-# 0 - remote name exists with correct url
-# 1 - remote name exists but different url
-# 2 - remote name doesn't exist
 
+def check_remote_status(binary, name, remote, method):
+    """
+    Check the remote status.
 
-def remote_status(binary, name, remote, method):
-    #    remote_name = parse_remote(remote)
+    returns:
+        status, type: int
+            The status of the queried remote
+            Possible values:
+            0 - remote name exists with correct url
+            1 - remote name exists but different url
+            2 - remote name doesn't exist
+    """
     command = "{0} remote-list -d --{1}".format(binary, method)
     output = flatpak_command(command)
     for line in output.split('\n'):
@@ -153,7 +175,7 @@ def remote_status(binary, name, remote, method):
     return 2
 
 
-def flatpak_command(command):
+def _flatpak_command(command):
     process = subprocess.Popen(
         command.split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output = process.communicate()[0]
@@ -196,7 +218,7 @@ def main():
     if remote is None:
         remote = ''
 
-    status = remote_status(binary, name, remote, method)
+    status = check_remote_status(binary, name, remote, method)
     changed = False
     if state == 'present':
         if status == 0:
