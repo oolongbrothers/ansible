@@ -220,25 +220,30 @@ def main():
 
     status = check_remote_status(binary, name, remote, method)
     changed = False
+    result = 0
     if state == 'present':
         if status == 0:
             changed = False
         elif status == 1:
             # Found name with wrong url, replacing with desired url.
-            remove_remote(module, binary, name, method)
-            add_remote(module, binary, name, remote, method)
-            changed = True
+            result, output = remove_remote(module, binary, name, remote, method)
+            if result == 0:
+                result, output = add_remote(module, binary, name, remote, method)
+                changed = True
         else:
-            add_remote(module, binary, name, remote, method)
+            result, output = add_remote(module, binary, name, remote, method)
             changed = True
     else:
         if status == 0 or status == 1:
-            remove_remote(module, binary, name, method)
+            result, output = remove_remote(module, binary, name, method)
             changed = True
         else:
             changed = False
 
-    module.exit_json(changed=changed)
+    if result == 0:
+        module.exit_json(changed=changed)
+    else:
+        module.fail_json(msg=output, changed=changed)
 
 
 if __name__ == '__main__':
