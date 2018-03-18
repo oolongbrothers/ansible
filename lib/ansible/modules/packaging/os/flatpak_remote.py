@@ -117,8 +117,8 @@ def add_remote(module, binary, name, remote, method):
     command = "{0} remote-add --{1} {2} {3}".format(
         binary, method, name, remote)
 
-    output = _flatpak_command(command)
-    if 'error' in output:
+    return_code, output = _flatpak_command(command)
+    if return_code != 0:
         return 1, output
 
     return 0, output
@@ -145,8 +145,8 @@ def remove_remote(module, binary, name, method):
 
     command = "{0} remote-delete --{1} --force {2} ".format(
         binary, method, name)
-    output = _flatpak_command(command)
-    if 'error' in output and 'not found' not in output:
+    return_code, output = _flatpak_command(command)
+    if return_code != 0:
         return 1, output
 
     return 0, output
@@ -164,7 +164,7 @@ def check_remote_status(binary, name, remote, method):
             1 - remote name doesn't exist
     """
     command = "{0} remote-list -d --{1}".format(binary, method)
-    output = _flatpak_command(command)
+    return_code, output = _flatpak_command(command)
     for line in output.splitlines():
         listed_remote = line.split()
         if listed_remote[0] == name:
@@ -177,7 +177,7 @@ def _flatpak_command(command):
         command.split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output = process.communicate()[0]
 
-    return output
+    return process.returncode, output
 
 
 def main():
