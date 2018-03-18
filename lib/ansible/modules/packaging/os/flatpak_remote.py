@@ -161,18 +161,15 @@ def check_remote_status(binary, name, remote, method):
             The status of the queried remote
             Possible values:
             0 - remote name exists with correct url
-            1 - remote name exists but different url
-            2 - remote name doesn't exist
+            1 - remote name doesn't exist
     """
     command = "{0} remote-list -d --{1}".format(binary, method)
     output = _flatpak_command(command)
     for line in output.splitlines():
         listed_remote = line.split()
         if listed_remote[0] == name:
-            if listed_remote[2] == remote:
-                return 0
-            return 1
-    return 2
+            return 0
+    return 1
 
 
 def _flatpak_command(command):
@@ -224,17 +221,11 @@ def main():
     if state == 'present':
         if status == 0:
             changed = False
-        elif status == 1:
-            # Found name with wrong url, replacing with desired url.
-            result, output = remove_remote(module, binary, name, remote, method)
-            if result == 0:
-                result, output = add_remote(module, binary, name, remote, method)
-                changed = True
         else:
             result, output = add_remote(module, binary, name, remote, method)
             changed = True
     else:
-        if status == 0 or status == 1:
+        if status == 0:
             result, output = remove_remote(module, binary, name, method)
             changed = True
         else:
