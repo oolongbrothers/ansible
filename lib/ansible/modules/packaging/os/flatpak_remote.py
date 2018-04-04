@@ -151,10 +151,6 @@ def remove_remote(module, binary, name, method):
 
     return 0, output
 
-# Possible outcomes
-# 0 - remote name exists with correct url
-# 1 - remote name exists but different url
-# 2 - remote name doesn't exist
 
 def check_remote_status(binary, name, remote, method):
     """
@@ -239,7 +235,6 @@ def main():
         module.exit_json(changed=changed)
     else:
         module.fail_json(msg=output, changed=changed)
-
 
 
 if __name__ == '__main__':
