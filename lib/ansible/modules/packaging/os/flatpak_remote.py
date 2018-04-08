@@ -27,11 +27,13 @@ description:
 options:
   name:
     description:
-    - When I(state) is set to C(present), I(name) is added as a remote for installing flatpaks. When used with I(state=absent) the remote will be removed.
+    - When I(state) is set to C(present), I(name) is added as a remote for installing flatpaks.
+      When used with I(state=absent) the remote with thet name will be removed.
     required: true
   remote:
     description:
-    - When I(state) is set to C(present), I(remote) url is added to the target as a I(method) installation flatpak.
+    - When I(state) is set to C(present), I(remote) url is added as a flatpak remote for the
+      specified installation C(method).
       When used with I(state=absent), this is not required.
     required: false
   method:
@@ -42,7 +44,8 @@ options:
     default: system
   executable:
     description:
-    - The path to the C(flatpak) executable to use.
+    - The path to the C(flatpak) executable to use. The default will look for
+      the c(flatpak) executable on the path
     default: flatpak
   state:
     description:
@@ -160,8 +163,8 @@ def check_remote_status(binary, name, remote, method):
         status, type: int
             The status of the queried remote
             Possible values:
-            0 - remote name exists with correct url
-            1 - remote name doesn't exist
+            0 - remote with name exists
+            1 - remote with name doesn't exist
     """
     command = "{0} remote-list -d --{1}".format(binary, method)
     return_code, output = _flatpak_command(command)
