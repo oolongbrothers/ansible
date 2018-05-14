@@ -153,7 +153,7 @@ def _flatpak_command(module, noop, command):
         result['msg'] = "Failed to execute flatpak command"
         result['stdout'] = stdout_data
         result['stderr'] = stderr_data
-        module.fail_json(result)
+        module.fail_json(**result)
     return stdout_data
 
 
@@ -179,11 +179,6 @@ def main():
     executable = module.params['executable']
     binary = module.get_bin_path(executable, None)
 
-    # If the binary was not found, warn the user
-    if not binary:
-        module.warn("Executable '%s' was not found on the system." % executable)
-    binary = module.get_bin_path(executable, required=True)
-
     if remote is None:
         remote = ''
 
@@ -192,18 +187,20 @@ def main():
         changed=False
     )
 
-    try:
-        status = check_remote_status(module, binary, name, remote, method)
-        if state == 'present':
-            # Add remote if it does not exist
-            if status != 0:
-                add_remote(module, binary, name, remote, method)
-        elif state == 'absent':
-            # Remove remote if it exists
-            if status == 0:
-                remove_remote(module, binary, name, method)
-    except Exception:
+    # If the binary was not found, fail the operation
+    if not binary:
+        result['msg'] = "Executable '%s' was not found on the system." % executable
         module.fail_json(**result)
+
+    status = check_remote_status(module, binary, name, remote, method)
+    if state == 'present':
+        # Add remote if it does not exist
+        if status != 0:
+            add_remote(module, binary, name, remote, method)
+    elif state == 'absent':
+        # Remove remote if it exists
+        if status == 0:
+            remove_remote(module, binary, name, method)
 
     module.exit_json(**result)
 
