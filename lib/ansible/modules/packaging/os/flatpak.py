@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 # Copyright: (c) 2017 John Kwiatkoski
+# Copyright: (c) 2018 Alexander Bethke
 # Copyright: (c) 2017 Ansible Project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-from __future__ import absolute_import, division, print_function
+from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
-
 
 ANSIBLE_METADATA = {'metadata_version': '1.1',
                     'status': ['preview'],
@@ -22,18 +22,19 @@ description:
 version_added: '2.6'
 author:
 - John Kwiatkoski (@jaykayy)
+- Alexander Bethke Kwiatkoski (@oolongbrothers)
 requirements:
 - flatpak
 options:
   name:
     description:
-    - When I(state) is set to C(present), I(name) is best used as `http(s)` url format.
-      When set to C(absent) the same `http(s)` will try to remove it using the
-      name of the flatpakref. However, there is no naming standard between
-      names of flatpakrefs and what the reverse DNS name of the installed flatpak
-      will be. Given that, it is best to use the http(s) url for I(state=present)
-      and the reverse DNS I(state=absent). Alternatively reverse dns format can optimally
-      be used with I(state=absent), ex. I(name=org.gnome.gedit).
+    - When I(state) is set to C(present), I(name) can be specified as an `http(s)` URL to a
+      flatpakref-file or the unique reverse DNS name that identifies a flatpak. An example
+      for a reverse DNS name is I(name=org.gnome.gedit).
+      When set to C(absent), it is recommended to specify the name in the reverse DNS format;
+      when supplying an `http(s)` URL in that case, the module will try to remove it using the
+      name of the flatpakref. However, there is no guarantee that the names of flatpakref
+      file and the reverse DNS name of the installed flatpak do match.
     required: true
   executable:
     description:
@@ -47,8 +48,14 @@ options:
     default: present
   repo:
     description:
-    - The repository to install the flatpak from
+    - The repository to install the flatpak from.
+      See the `flatpak_remote` module for managing flatpak remotes.
     default: flathub
+  method:
+    description:
+    - Determines the type of installation to work on. Can be C(user) or C(system) installations.
+    choices: [ user, system ]
+    default: system
 '''
 
 EXAMPLES = r'''
@@ -67,11 +74,12 @@ EXAMPLES = r'''
     name: org.gnome.gedit
     state: absent
 
-- name: Install the gedit package from flathub
+- name: Install the gedit package from flathub for current user
   flatpak:
     name: org.gnome.gedit
     state: present
     repo: flathub
+  method: user
 
 - name: Install a flatpack stored in another repo
   flatpak:
@@ -88,54 +96,60 @@ reason:
   sample: error while installing...
 '''
 
+import subprocess
 from ansible.module_utils.six.moves.urllib.parse import urlparse
 from ansible.module_utils.basic import AnsibleModule
 
 
-def install_flat(module, binary, repo, flat):
-    installed = is_present_flat(module, binary, flat)
-    # Check if any changes would be made but don't actually make
-    # those changes
-    if installed:
-        module.exit_json(changed=False)
-        return 0
+def install_flat(module, binary, repo, name, method):
+    """Add a new flatpak."""
+    global result
+    if 'http://' in name or 'https://' in name:
+        command = "{0} install --{1} -y {2}".format(binary, method, name)
     else:
-        if module.check_mode:
-            module.exit_json(changed=True)
-
-        if 'http://' in flat or 'https://' in flat:
-            command = "{0} install -y {1}".format(binary, flat)
-        else:
-            command = "{0} install -y {1} {2}".format(binary, repo, flat)
-
-        output = flatpak_command(module, command)
-        return 0, output
+        command = "{0} install --{1} -y {2} {3}".format(binary, method, repo, name)
+    _flatpak_command(module, module.check_mode, command)
+    result['changed'] = True
 
 
-def uninstall_flat(module, binary, flat):
+def uninstall_flat(module, binary, name, method):
+    """Remove an existing flatpak."""
+    global result
+    installed_flat_name = _match_installed_flat_name(module, binary, name, method)
+    command = "{0} uninstall --{1} {2}".format(binary, method, installed_flat_name)
+    _flatpak_command(module, module.check_mode, command)
+    result['changed'] = True
+
+
+def is_present_flat(module, binary, name, method):
+    """Check if the flatpak is installed."""
+    command = "{0} list --{1} --app".format(binary, method)
+    output = _flatpak_command(module, False, command)
+    name = _parse_flatpak_name(name).lower()
+    if name in output.lower():
+        return True
+    return False
+
+
+def _match_installed_flat_name(module, binary, name, method):
     # This is a difficult function because it seems there
     # is no naming convention for the flatpakref to what
     # the installed flatpak will be named.
-    installed = is_present_flat(module, binary, flat)
-    # Check if any changes would be made but don't actually make
-    # those changes
-    if not installed:
-        module.exit_json(changed=False)
-    else:
-        if module.check_mode:
-            module.exit_json(changed=True)
+    global result
+    command = "{0} list --{1} --app".format(binary, method)
+    output = _flatpak_command(module, False, command)
+    parsed_name = _parse_flatpak_name(name)
+    for row in output.split('\n'):
+        if parsed_name.lower() in row.lower():
+            return row.split()[0]
 
-    command = "{0} list --app".format(binary)
-    result = module.run_command(command.split())
-    for row in result[1].split('\n'):
-        if parse_flat(flat) in row:
-            installed_flat_name = row.split(' ')[0]
-    command = "{0} uninstall {1}".format(binary, installed_flat_name)
-    output = flatpak_command(module, command)
-    return 0, output
+    result['msg'] = "Flatpak removal failed: Could not match any installed flatpaks to " +\
+        "the name `{}`. ".format(_parse_flatpak_name(name)) +\
+        "If you used a URL, try using the reverse DNS name of the flatpak"
+    module.fail_json(**result)
 
 
-def parse_flat(name):
+def _parse_flatpak_name(name):
     if 'http://' in name or 'https://' in name:
         file_name = urlparse(name).path.split('/')[-1]
         file_name_without_extension = file_name.split('.')[0:-1]
@@ -145,18 +159,24 @@ def parse_flat(name):
     return common_name
 
 
-def is_present_flat(module, binary, name):
-    command = "{0} list --app".format(binary)
-    flat = parse_flat(name).lower()
-    output = flatpak_command(module, command)
-    if flat in output.lower():
-        return True
-    return False
+def _flatpak_command(module, noop, command):
+    global result
+    if noop:
+        result['rc'] = 0
+        result['command'] = command
+        return ""
 
-
-def flatpak_command(module, command):
-    result = module.run_command(command.split())
-    return result[1]
+    process = subprocess.Popen(
+        command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout_data, stderr_data = process.communicate()
+    result['rc'] = process.returncode
+    result['command'] = command
+    if result['rc'] != 0:
+        result['msg'] = "Failed to execute flatpak command"
+        result['stdout'] = stdout_data
+        result['stderr'] = stderr_data
+        module.fail_json(**result)
+    return stdout_data
 
 
 def main():
@@ -165,6 +185,8 @@ def main():
         argument_spec=dict(
             name=dict(type='str', required=True),
             repo=dict(type='str', default='flathub'),
+            method=dict(type='str', default='system',
+                        choices=['user', 'system']),
             state=dict(type='str', default='present',
                        choices=['absent', 'present']),
             executable=dict(type='path', default='flatpak')
@@ -175,23 +197,29 @@ def main():
     name = module.params['name']
     state = module.params['state']
     repo = module.params['repo']
+    method = module.params['method']
     executable = module.params['executable']
-
-    # We want to know if the user provided it or not, so we set default here
-    if executable is None:
-        executable = 'flatpak'
-
     binary = module.get_bin_path(executable, None)
 
-    # When executable was provided and binary not found, warn user !
-    if module.params['executable'] is not None and not binary:
-        module.fail_json("Executable '%s' is not found on the system." % executable)
+    global result
+    result = dict(
+        changed=False
+    )
 
+    # If the binary was not found, fail the operation
+    if not binary:
+        result['msg'] = "Executable '%s' was not found on the system." % executable
+        module.fail_json(**result)
+
+    installed = is_present_flat(module, binary, name, method)
     if state == 'present':
-        result = install_flat(module, binary, repo, name)
+        if not installed:
+            install_flat(module, binary, repo, name, method)
     elif state == 'absent':
-        result = uninstall_flat(module, binary, name)
-    module.exit_json(changed=True, msg=result[1])
+        if installed:
+            uninstall_flat(module, binary, name, method)
+
+    module.exit_json(**result)
 
 
 if __name__ == '__main__':
