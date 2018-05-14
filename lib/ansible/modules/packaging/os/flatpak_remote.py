@@ -94,27 +94,29 @@ name:
   sample: https://sdk.gnome.org/gnome-apps.flatpakrepo
 '''
 
-result = dict()
-
 import subprocess
 from ansible.module_utils.basic import AnsibleModule
 
 
-def add_remote(check_mode, binary, name, remote, method):
+def add_remote(module, binary, name, remote, method):
     """Add a new remote."""
+    global result
     command = "{0} remote-add --{1} {2} {3}".format(
         binary, method, name, remote)
-    _flatpak_command(check_mode, command)
+    _flatpak_command(module, module.check_mode, command)
+    result['changed'] = True
 
 
-def remove_remote(check_mode, binary, name, method):
+def remove_remote(module, binary, name, method):
     """Remove an existing remote."""
+    global result
     command = "{0} remote-delete --{1} --force {2} ".format(
         binary, method, name)
-    _flatpak_command(check_mode, command)
+    _flatpak_command(module, module.check_mode, command)
+    result['changed'] = True
 
 
-def check_remote_status(check_mode, binary, name, remote, method):
+def check_remote_status(module, binary, name, remote, method):
     """
     Check the remote status.
 
@@ -126,7 +128,8 @@ def check_remote_status(check_mode, binary, name, remote, method):
             1 - remote with name doesn't exist
     """
     command = "{0} remote-list -d --{1}".format(binary, method)
-    output = _flatpak_command(check_mode, command)
+    # The query operation for the remote needs to be run even in check mode
+    output = _flatpak_command(module, False, command)
     for line in output.splitlines():
         listed_remote = line.split()
         if listed_remote[0] == name:
@@ -134,11 +137,9 @@ def check_remote_status(check_mode, binary, name, remote, method):
     return 1
 
 
-def _flatpak_command(check_mode, command):
+def _flatpak_command(module, noop, command):
     global result
-    if check_mode:
-        # Check if any changes would be made but don't actually make
-        # those changes
+    if noop:
         result['rc'] = 0
         result['command'] = command
         return ""
@@ -152,7 +153,7 @@ def _flatpak_command(check_mode, command):
         result['msg'] = "Failed to execute flatpak command"
         result['stdout'] = stdout_data
         result['stderr'] = stderr_data
-        raise RuntimeError(stderr_data)
+        module.fail_json(result)
     return stdout_data
 
 
@@ -177,7 +178,6 @@ def main():
     state = module.params['state']
     executable = module.params['executable']
     binary = module.get_bin_path(executable, None)
-    check_mode = module.check_mode
 
     # If the binary was not found, warn the user
     if not binary:
@@ -188,25 +188,21 @@ def main():
         remote = ''
 
     global result
-    result = {
-        'changed': False
-    }
+    result = dict(
+        changed=False
+    )
 
     try:
-        status = check_remote_status(check_mode, binary, name, remote, method)
+        status = check_remote_status(module, binary, name, remote, method)
         if state == 'present':
+            # Add remote if it does not exist
+            if status != 0:
+                add_remote(module, binary, name, remote, method)
+        elif state == 'absent':
+            # Remove remote if it exists
             if status == 0:
-                result['changed'] = False
-            else:
-                add_remote(check_mode, binary, name, remote, method)
-                result['changed'] = True
-        else:
-            if status == 0:
-                remove_remote(check_mode, binary, name, method)
-                result['changed'] = True
-            else:
-                result['changed'] = False
-    except RuntimeError:
+                remove_remote(module, binary, name, method)
+    except Exception:
         module.fail_json(**result)
 
     module.exit_json(**result)
