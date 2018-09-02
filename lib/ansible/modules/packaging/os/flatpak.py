@@ -41,18 +41,19 @@ options:
     default: system
   name:
     description:
-    - The name of the flatpak to manage.
-    - When used with I(state=present), I(name) can be specified as an C(http(s)) URL to a
-      C(flatpakref) file or the unique reverse DNS name that identifies a flatpak.
-    - When suppying a reverse DNS name, you can use the I(remote) option to specify on what remote
-      to look for the flatpak. An example for a reverse DNS name is C(org.gnome.gedit).
-    - When used with I(state=absent), it is recommended to specify the name in the reverse DNS
+    - A list of flatpaks to manage.
+    - When used with I(state=present), I(name) can be specified as C(http(s)) URLs to
+      C(flatpakref) files or the unique reverse DNS names that identify flatpaks.
+    - When suppying a reverse DNS name, you need to use the I(remote) option to specify on what
+      remote to look on for the flatpak. An example for a reverse DNS name is C(org.gnome.gedit).
+    - When used with I(state=absent), it is recommended to specify I(name) in the reverse DNS
       format.
     - When supplying an C(http(s)) URL with I(state=absent), the module will try to match the
       installed flatpak based on the name of the flatpakref to remove it. However, there is no
       guarantee that the names of the flatpakref file and the reverse DNS name of the installed
       flatpak do match.
     required: true
+    aliases: [ flatpak, package, pkg ]
   remote:
     description:
     - The flatpak remote (repository) to install the flatpak from.
@@ -78,9 +79,11 @@ EXAMPLES = r'''
     name: https://git.gnome.org/browse/gnome-apps-nightly/plain/gedit.flatpakref
     state: present
 
-- name: Install the gedit package from flathub for current user
+- name: Install the gedit and Characters package from flathub for current user
   flatpak:
-    name: org.gnome.gedit
+    name:
+      - org.gnome.gedit
+      - org.gnome.Characters
     state: present
   method: user
 
@@ -129,7 +132,7 @@ from ansible.module_utils.six.moves.urllib.parse import urlparse
 from ansible.module_utils.basic import AnsibleModule
 
 
-def install_flat(module, binary, remote, name, method):
+def install_flatpak(module, binary, remote, name, method):
     """Add a new flatpak."""
     global result
     if name.startswith('http://') or name.startswith('https://'):
@@ -140,7 +143,7 @@ def install_flat(module, binary, remote, name, method):
     result['changed'] = True
 
 
-def uninstall_flat(module, binary, name, method):
+def uninstall_flatpak(module, binary, name, method):
     """Remove an existing flatpak."""
     global result
     installed_flat_name = _match_installed_flat_name(module, binary, name, method)
@@ -154,7 +157,8 @@ def flatpak_exists(module, binary, name, method):
     command = "{0} list --{1} --app".format(binary, method)
     output = _flatpak_command(module, False, command)
     name = _parse_flatpak_name(name).lower()
-    if name in output.lower():
+    byte_name = bytes(name, 'utf-8')
+    if byte_name in output.lower():
         return True
     return False
 
@@ -206,11 +210,21 @@ def _flatpak_command(module, noop, command):
     return stdout_data
 
 
+def compile_list_of_flatpaks_to_change(module, binary, flatpaks, state, method):
+    """Compile a list of flatpaks that need changing."""
+    flatpak_list = []
+    for flatpak in flatpaks:
+        if state == 'present' and not flatpak_exists(module, binary, flatpak, method):
+            flatpak_list.append(flatpak)
+        elif state == 'absent' and flatpak_exists(module, binary, flatpak, method):
+            flatpak_list.append(flatpak)
+    return flatpak_list
+
+
 def main():
-    # This module supports check mode
     module = AnsibleModule(
         argument_spec=dict(
-            name=dict(type='str', required=True),
+            name=dict(type='list', required=True, aliases=['flatpak', 'package', 'pkg']),
             remote=dict(type='str', default='flathub'),
             method=dict(type='str', default='system',
                         choices=['user', 'system']),
@@ -237,10 +251,13 @@ def main():
     if not binary:
         module.fail_json(msg="Executable '%s' was not found on the system." % executable, **result)
 
-    if state == 'present' and not flatpak_exists(module, binary, name, method):
-        install_flat(module, binary, remote, name, method)
-    elif state == 'absent' and flatpak_exists(module, binary, name, method):
-        uninstall_flat(module, binary, name, method)
+    flatpaks = compile_list_of_flatpaks_to_change(module, binary, name, state, method)
+
+    for flatpak in flatpaks:
+        if state == 'present':
+            install_flatpak(module, binary, remote, flatpak, method)
+        elif state == 'absent':
+            uninstall_flatpak(module, binary, flatpak, method)
 
     module.exit_json(**result)
 

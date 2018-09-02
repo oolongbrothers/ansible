@@ -32,6 +32,22 @@
         Adding an absent flatpak a second time shall still mark module execution
         as changed in check mode
 
+- name: Test addition of absent flatpak list (check mode)
+  flatpak:
+    name:
+      - org.gnome.Characters
+      - org.gnome.Calendar
+    remote: flathub
+    state: present
+  register: addition_result
+  check_mode: true
+
+- name: Verify addition of absent flatpak list test result (check mode)
+  assert:
+    that:
+      - "addition_result.changed == true"
+    msg: "Adding absent flatpaks shall mark module execution as changed"
+
 # state=absent on absent flatpak
 
 - name: Test removal of absent flatpak check mode
