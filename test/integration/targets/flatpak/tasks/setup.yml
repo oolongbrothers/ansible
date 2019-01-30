@@ -36,6 +36,12 @@
 
 - name: Add flatpak for testing check mode on present flatpak
   flatpak:
-    name: org.gnome.Calculator
+    name: org.gnome.SoundRecorder
+    remote: flathub
+    state: present
+
+- name: Add second flatpak for testing list feature in check mode on present flatpak
+  flatpak:
+    name: org.gnome.Glade
     remote: flathub
     state: present

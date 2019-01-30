@@ -28,6 +28,7 @@
       - "double_addition_result.changed == false"
     msg: "state=present shall not do anything when flatpak is already present"
 
+
 # state=absent
 
 - name: Test removal - {{ method }}
@@ -55,6 +56,75 @@
     that:
       - "double_removal_result.changed == false"
     msg: "state=absent shall not do anything when flatpak is not present"
+
+
+# state=present with list
+
+- name: Test addition with list - {{ method }}
+  flatpak:
+    name:
+      - org.gnome.quadrapassel
+      - org.gnome.tetravex
+    remote: flathub
+    state: present
+    method: "{{ method }}"
+  register: addition_list_result
+
+- name: Verify addition with list test result - {{ method }}
+  assert:
+    that:
+      - "addition_list_result.changed == true"
+    msg: "state=preset shall add flatpaks when absent"
+
+- name: Test idempotency of addition with list - {{ method }}
+  flatpak:
+    name:
+      - org.gnome.quadrapassel
+      - org.gnome.tetravex
+    remote: flathub
+    state: present
+    method: "{{ method }}"
+  register: double_addition_list_result
+
+- name: Verify idempotency of addition with list test result - {{ method }}
+  assert:
+    that:
+      - "double_addition_list_result.changed == false"
+    msg: "state=present shall not do anything when flatpaks are already present"
+
+
+# state=absent with list
+
+- name: Test removal with list - {{ method }}
+  flatpak:
+    name:
+      - org.gnome.quadrapassel
+      - org.gnome.tetravex
+    state: absent
+    method: "{{ method }}"
+  register: removal_list_result
+
+- name: Verify removal with list test result - {{ method }}
+  assert:
+    that:
+      - "removal_list_result.changed == true"
+    msg: "state=absent shall remove flatpaks when present"
+
+- name: Test idempotency of removal with list - {{ method }}
+  flatpak:
+    name:
+      - org.gnome.quadrapassel
+      - org.gnome.tetravex
+    state: absent
+    method: "{{ method }}"
+  register: double_removal_list_result
+
+- name: Verify idempotency of removal with list test result - {{ method }}
+  assert:
+    that:
+      - "double_removal_list_result.changed == false"
+    msg: "state=absent shall not do anything when flatpaks are not present"
+
 
 # state=present with url as name
 
@@ -86,6 +156,40 @@
       - "double_url_addition_result.changed == false"
     msg: "state=present with url as name shall not do anything when flatpak is already present"
 
+
+# state=present with list of urls as name
+
+- name: Test addition with list of urls - {{ method }}
+  flatpak:
+    name:
+      - https://flathub.org/repo/appstream/org.gnome.quadrapassel.flatpakref
+      - https://flathub.org/repo/appstream/org.gnome.tetravex.flatpakref
+    state: present
+    method: "{{ method }}"
+  register: url_addition_list_result
+
+- name: Verify addition with list of urls test result - {{ method }}
+  assert:
+    that:
+      - "url_addition_list_result.changed == true"
+    msg: "state=preset with list of url as name shall add flatpaks when absent"
+
+- name: Test idempotency of addition list of urls - {{ method }}
+  flatpak:
+    name:
+      - https://flathub.org/repo/appstream/org.gnome.quadrapassel.flatpakref
+      - https://flathub.org/repo/appstream/org.gnome.tetravex.flatpakref
+    state: present
+    method: "{{ method }}"
+  register: double_url_addition_list_result
+
+- name: Verify idempotency of addition list of urls test result - {{ method }}
+  assert:
+    that:
+      - "double_url_addition_list_result.changed == false"
+    msg: "state=present with list of urls as name shall not do anything when flatpaks present"
+
+
 # state=absent with url as name
 
 - name: Test removal with url - {{ method }}
@@ -113,3 +217,37 @@
     that:
       - "double_url_removal_result.changed == false"
     msg: "state=absent with url as name shall not do anything when flatpak is not present"
+
+# state=absent with list of urls as name
+
+- name: Test removal with list of urls - {{ method }}
+  flatpak:
+    name:
+      - https://flathub.org/repo/appstream/org.gnome.quadrapassel.flatpakref
+      - https://flathub.org/repo/appstream/org.gnome.tetravex.flatpakref
+    state: absent
+    method: "{{ method }}"
+  register: url_removal_list_result
+
+- name: Verify removal with list of urls test result - {{ method }}
+  assert:
+    that:
+      - "url_removal_list_result.changed == true"
+    msg: "state=absent with list of urls as name shall remove flatpaks when present"
+
+- name: Test idempotency of removal with list of urls - {{ method }}
+  flatpak:
+    name:
+      - https://flathub.org/repo/appstream/org.gnome.quadrapassel.flatpakref
+      - https://flathub.org/repo/appstream/org.gnome.tetravex.flatpakref
+    state: absent
+    method: "{{ method }}"
+  register: double_url_removal_list_result
+
+- name: Verify idempotency of removal with list of urls test result - {{ method }}
+  assert:
+    that:
+      - "double_url_removal_list_result.changed == false"
+    msg: >
+        state=absent with list of urls as name shall not do anything when flatpaks
+        are not present
